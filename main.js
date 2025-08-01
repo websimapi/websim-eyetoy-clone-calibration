@@ -8,7 +8,6 @@ const loadingElement = document.getElementById('loading');
 const ctx = canvasElement.getContext('2d');
 
 let detector;
-let videoReady = false;
 let rafId;
 
 const KEYPOINT_CONFIDENCE_THRESHOLD = 0.5;
@@ -18,9 +17,14 @@ async function setupApp() {
         await tf.setBackend('webgl');
         const model = poseDetection.SupportedModels.MoveNet;
         detector = await poseDetection.createDetector(model);
-        await setupWebcam();
-        loadingElement.style.display = 'none';
-        runDetection();
+        
+        const video = await setupWebcam();
+        await video.play();
+        handleResize(); // Initial resize to set canvas dimensions
+        window.addEventListener('resize', handleResize);
+        
+        loadingElement.style.display = 'none'; // Hide loading screen
+        runDetection(); // Start detection loop
     } catch (error) {
         console.error("Initialization failed:", error);
         loadingElement.textContent = "Failed to load. Please check console for errors.";
@@ -39,9 +43,6 @@ async function setupWebcam() {
 
         return new Promise((resolve) => {
             webcamElement.addEventListener('loadedmetadata', () => {
-                videoReady = true;
-                handleResize();
-                window.addEventListener('resize', handleResize);
                 resolve(webcamElement);
             });
         });
@@ -53,7 +54,7 @@ async function setupWebcam() {
 }
 
 async function runDetection() {
-    if (videoReady && detector) {
+    if (detector && !webcamElement.paused && !webcamElement.ended) {
         const poses = await detector.estimatePoses(webcamElement, {
             flipHorizontal: false 
         });
@@ -126,13 +127,6 @@ function drawSkeleton(keypoints, scale, offsetX, offsetY) {
 function handleResize() {
     canvasElement.width = window.innerWidth;
     canvasElement.height = window.innerHeight;
-    if(videoReady) {
-        // Redraw immediately on resize
-        if (rafId) {
-            cancelAnimationFrame(rafId);
-        }
-        runDetection();
-    }
 }
 
 setupApp();
